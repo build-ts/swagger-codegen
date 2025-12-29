@@ -71,13 +71,33 @@ export class NamingUtil {
    * Clean operation ID from controller/service/handler suffixes
    * categoryControllerGetCategoryById -> categoryGetCategoryById
    */
+  /**
+   * Clean operation ID from controller/service/handler suffixes AND resource prefix
+   * assignmentCreateAssignmentForOrder -> createAssignmentForOrder
+   */
   static cleanOperationId(operationId: string): string {
-    return operationId
+    let cleaned = operationId
       .replace(/Controller/g, "")
       .replace(/Service/g, "")
       .replace(/Handler/g, "")
       .replace(/Manager/g, "")
       .replace(/Processor/g, "");
+
+    const words = cleaned.split(/(?=[A-Z])/);
+
+    if (words.length >= 2) {
+      const firstWord = words[0].toLowerCase();
+      const secondWordIndex = cleaned.toLowerCase().indexOf(firstWord, 1);
+
+      if (secondWordIndex > 0) {
+        // Resource name repeats, remove first occurrence
+        cleaned = cleaned.slice(firstWord.length);
+        // Lowercase first letter
+        cleaned = cleaned.charAt(0).toLowerCase() + cleaned.slice(1);
+      }
+    }
+
+    return cleaned;
   }
 
   /**

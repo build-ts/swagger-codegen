@@ -265,7 +265,70 @@ ${axiosCall}
   }
 
   /**
-   * Generate URL building code
+   * Detect HTTP method from endpoint name
+   * getCategories -> GET
+   * createCategory -> POST
+   * updateCategory -> PUT
+   * deleteCategory -> DELETE
+   */
+  private detectMethodFromName(methodName: string): string {
+    const lower = methodName.toLowerCase();
+
+    if (
+      lower.startsWith("get") ||
+      lower.startsWith("find") ||
+      lower.startsWith("fetch") ||
+      lower.startsWith("list")
+    ) {
+      return "get";
+    } else if (
+      lower.startsWith("create") ||
+      lower.startsWith("add") ||
+      lower.startsWith("post")
+    ) {
+      return "post";
+    } else if (
+      lower.startsWith("update") ||
+      lower.startsWith("edit") ||
+      lower.startsWith("modify") ||
+      lower.startsWith("put")
+    ) {
+      return "put";
+    } else if (lower.startsWith("delete") || lower.startsWith("remove")) {
+      return "delete";
+    } else if (lower.startsWith("patch")) {
+      return "patch";
+    } else if (lower.startsWith("assign")) {
+      return "post"; // assign operations are usually POST
+    }
+
+    // Default fallback
+    return "post";
+  }
+  /**
+   * Generate axios call - no metadata needed
+   */
+  private generateAxiosCall(
+    methodName: string,
+    hasBody: boolean,
+    includeHeaders: boolean
+  ): string {
+    // Detect method from endpoint name
+    const axiosMethod = this.detectMethodFromName(methodName);
+
+    if (axiosMethod === "get" || axiosMethod === "delete") {
+      return `      const response = await axiosInstance.${axiosMethod}(url${
+        includeHeaders ? ", { headers }" : ""
+      });`;
+    } else {
+      return `      const response = await axiosInstance.${axiosMethod}(url, payload${
+        includeHeaders ? ", { headers }" : ""
+      });`;
+    }
+  }
+
+  /**
+   * Generate URL building code - no metadata
    */
   private generateUrlBuilding(
     tag: string,
@@ -274,12 +337,10 @@ ${axiosCall}
     paramsType: string
   ): string {
     const endpointsVar = `${tag}Endpoints`;
-    const metadataVar = `${tag}Metadata`;
 
     let code = `      // Build URL\n`;
 
     if (pathParams.length > 0 || paramsType) {
-      // Function call with arguments
       const args: string[] = [];
 
       if (pathParams.length > 0) {
@@ -294,38 +355,14 @@ ${axiosCall}
         ", "
       )});\n`;
     } else {
-      // Simple function call, no arguments
       code += `      const url = ${endpointsVar}.${endpointKey}();\n`;
     }
-
-    code += `      const method = ${metadataVar}.${endpointKey}.method;\n`;
 
     return code;
   }
 
   /**
-   * Generate axios call
-   */
-  private generateAxiosCall(
-    method: string,
-    hasBody: boolean,
-    includeHeaders: boolean
-  ): string {
-    const methodLower = method.toLowerCase();
-
-    if (methodLower === "get" || methodLower === "delete") {
-      return `      const response = await axiosInstance[method.toLowerCase()](url${
-        includeHeaders ? ", { headers }" : ""
-      });`;
-    } else {
-      return `      const response = await axiosInstance[method.toLowerCase()](url, payload${
-        includeHeaders ? ", { headers }" : ""
-      });`;
-    }
-  }
-
-  /**
-   * Generate imports
+   * Generate imports - no metadata import
    */
   private generateImports(
     tag: string,
@@ -334,7 +371,7 @@ ${axiosCall}
   ): string {
     let imports = `import { useState } from 'react';\n`;
     imports += `import { axiosInstance } from '../../config/axiosInstance';\n`;
-    imports += `import { ${tag}Endpoints, ${tag}Metadata } from '../../endpoints/${tag}';\n`;
+    imports += `import { ${tag}Endpoints } from '../../endpoints/${tag}';\n`; // ✅ No metadata
 
     const typeImports: string[] = [];
     if (types.hasResponse) typeImports.push(`I${resourceName}Response`);
