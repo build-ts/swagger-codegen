@@ -1,6 +1,6 @@
 {
   "name": "@build-ts/swagger-codegen",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "description": "Generate TypeScript models, endpoints, axios config and React hooks from Swagger/OpenAPI specs",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
