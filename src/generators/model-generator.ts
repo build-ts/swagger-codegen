@@ -216,14 +216,28 @@ export class ModelGenerator {
   }
 
   private getBaseName(endpoint: EndpointInfo, tag: string): string {
-    if (endpoint.operationId) {
-      // Clean operation ID and extract resource
-      const resource = NamingUtil.extractResourceName(endpoint.operationId);
-      return resource;
+    if (!endpoint.operationId) {
+      return NamingUtil.pascalCase(tag);
     }
-    return NamingUtil.pascalCase(tag);
+
+    const cleaned = NamingUtil.cleanOperationId(endpoint.operationId);
+
+    const resource = NamingUtil.extractResourceName(endpoint.operationId);
+
+    const action = this.extractAction(cleaned);
+
+    return `${resource}${NamingUtil.capitalize(action)}`;
   }
 
+  private extractAction(cleaned: string): string {
+    // Split camelCase
+    const words = cleaned.match(/[A-Z][a-z]+|[a-z]+/g) || [];
+
+    if (words.length === 0) return "Action";
+
+    return words.map((w) => NamingUtil.capitalize(w)).join("");
+  }
+  
   private extractRequestSchema(endpoint: EndpointInfo, spec: SwaggerSpec): any {
     const pathData = spec.paths[endpoint.originalPath || endpoint.path];
     const methodData = pathData?.[endpoint.method.toLowerCase()];
