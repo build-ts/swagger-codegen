@@ -1,11 +1,25 @@
+# .gitignore
 node_modules/
 dist/
 test-output/
 *.log
-*.tgz
 .DS_Store
 .vscode/
 .idea/
 coverage/
 .nyc_output/
-yarn.lock
+
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+.pnp.*
+
+# Keep yarn.lock
+# yarn.lock - should be committed
+
+# NPM (if accidentally created)
+package-lock.json

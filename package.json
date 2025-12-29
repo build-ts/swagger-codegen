@@ -10,8 +10,8 @@
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist test-output",
-    "prepublishOnly": "npm run clean && npm run build",
-    "test": "npm run build && node dist/cli.js https://petstore.swagger.io/v2/swagger.json -o ./test-output"
+    "test": "yarn build && node dist/cli.js https://petstore.swagger.io/v2/swagger.json -o ./test-output",
+    "prepublishOnly": "yarn clean && yarn build"
   },
   "keywords": [
     "swagger",
