@@ -1,106 +1,141 @@
-import { GeneratorConfig } from './types';
-import { SwaggerParser } from '../parsers/swagger-parser';
-import { EndpointParser } from '../parsers/endpoint-parser';
-import { ModelGenerator } from '../generators/model-generator';
-import { EndpointGenerator } from '../generators/endpoint-generator';
-import { IndexGenerator } from '../generators/index-generator';
-import { AxiosConfigGenerator } from '../generators/axios-config-generator';
-import { HooksGenerator } from '../generators/hooks-generator';
-import { Logger } from '../utils/logger';
-import path from 'path';
-import { DependencyChecker } from '../utils/dependency-checker';
+import { SwaggerParser } from "../parsers/swagger-parser";
+import { EndpointParser } from "../parsers/endpoint-parser";
+import { ModelGenerator } from "../generators/model-generator";
+import { EndpointGenerator } from "../generators/endpoint-generator";
+import { AxiosConfigGenerator } from "../generators/axios-config-generator";
+import { HooksGenerator } from "../generators/hooks-generator";
+import { IndexGenerator } from "../generators/index-generator";
+import { UserGeneratorConfig, ResolvedGeneratorConfig } from "./types";
+import { Logger } from "../utils/logger";
+import path from "path";
+import fs from "fs";
 
 export class SwaggerCodeGenerator {
-  private config: GeneratorConfig;
+  private config: ResolvedGeneratorConfig;
 
-  constructor(config: GeneratorConfig) {
-    this.config = config;
+  constructor(userConfig: UserGeneratorConfig) {
+    this.config = this.resolveConfig(userConfig);
   }
 
   async generate() {
-    Logger.info('🚀 Starting code generation...\n');
-
     try {
-      if (!this.config.hooks?.skipDependencyCheck && 
-          !this.config.axiosConfig?.skipDependencyCheck) {
-        DependencyChecker.checkPeerDependencies(this.config);
-      }
+      Logger.info("🚀 Starting code generation...");
 
-      // Parse swagger
-      const parser = new SwaggerParser();
-      const spec = await parser.parse(this.config.swaggerUrl);
+      // Parse Swagger
+      Logger.step("Parsing Swagger specification...");
+      const swaggerParser = new SwaggerParser();
+      const spec = await swaggerParser.parse(this.config.swaggerUrl);
+      Logger.success("Swagger parsed successfully");
 
       // Parse endpoints
       const endpointParser = new EndpointParser();
-      const endpointsByTag = endpointParser.parse(spec);
+      const endpointsByTag = endpointParser.parse(spec, this.config);
 
-      Logger.info(`\nFound ${endpointsByTag.size} tags with endpoints\n`);
-
-      const modelsPath = path.join(this.config.outputDir, this.config.modelsDir);
-      const endpointsPath = path.join(this.config.outputDir, this.config.endpointsDir);
+      // Create output directories
+      this.createDirectories();
 
       // Generate models
-      const modelGenerator = new ModelGenerator(modelsPath);
-      modelGenerator.generate(spec, endpointsByTag);
+      const modelGenerator = new ModelGenerator(
+        path.join(this.config.outputDir, this.config.modelsDir)
+      );
+      modelGenerator.generate(spec, endpointsByTag, this.config);
 
-      // Generate endpoints
-      const endpointGenerator = new EndpointGenerator(endpointsPath);
-      endpointGenerator.generate(endpointsByTag);
+      // Generate endpoints (pass spec!)
+      const endpointGenerator = new EndpointGenerator(
+        path.join(this.config.outputDir, this.config.endpointsDir)
+      );
+      endpointGenerator.generate(endpointsByTag, this.config, spec);
 
-      // Generate axios config (artıq optional check lazım deyil)
+      // Generate axios config
       if (this.config.axiosConfig.generateAxiosConfig) {
-        const configPath = path.join(
-          this.config.outputDir, 
-          this.config.axiosConfig.axiosConfigPath
+        const axiosGenerator = new AxiosConfigGenerator(
+          path.join(
+            this.config.outputDir,
+            this.config.axiosConfig.axiosConfigPath
+          )
         );
-        const axiosConfigGen = new AxiosConfigGenerator(configPath, this.config.axiosConfig);
-        axiosConfigGen.generate();
+        axiosGenerator.generate(this.config);
       }
 
-      // Generate hooks (artıq optional check lazım deyil)
+      // Generate React hooks
       if (this.config.hooks.generateHooks) {
-        const hooksPath = path.join(
-          this.config.outputDir,
-          this.config.hooks.hooksDir
+        const hooksGenerator = new HooksGenerator(
+          path.join(this.config.outputDir, this.config.hooks.hooksDir)
         );
-        const hooksGen = new HooksGenerator(hooksPath, this.config.hooks);
-        hooksGen.generate(endpointsByTag);
+        hooksGenerator.generate(endpointsByTag, this.config);
       }
 
       // Generate index files
       if (this.config.generateIndex) {
-        const tags = Array.from(endpointsByTag.keys());
-        
-        const modelIndexGen = new IndexGenerator(modelsPath);
-        modelIndexGen.generateModelIndex(tags);
-
-        const endpointIndexGen = new IndexGenerator(endpointsPath);
-        endpointIndexGen.generateEndpointIndex(tags);
+        const indexGenerator = new IndexGenerator(this.config.outputDir);
+        indexGenerator.generate(endpointsByTag, this.config);
       }
 
-      Logger.success('\n🎉 Code generation completed successfully!\n');
-      this.printSummary(endpointsByTag);
-    } catch (error) {
-      Logger.error(`Generation failed: ${(error as Error).message}`);
+      Logger.success("✅ Code generation completed successfully!");
+      Logger.info(`📁 Output directory: ${this.config.outputDir}`);
+    } catch (error: any) {
+      Logger.error(`Generation failed: ${error.message}`);
       throw error;
     }
   }
 
-  private printSummary(endpointsByTag: Map<string, any[]>) {
-    console.log('📊 Summary:');
-    console.log(`   Output directory: ${this.config.outputDir}`);
-    console.log(`   Models: ${path.join(this.config.outputDir, this.config.modelsDir)}`);
-    console.log(`   Endpoints: ${path.join(this.config.outputDir, this.config.endpointsDir)}`);
-    
+  private createDirectories() {
+    const dirs = [
+      this.config.outputDir,
+      path.join(this.config.outputDir, this.config.modelsDir),
+      path.join(this.config.outputDir, this.config.endpointsDir),
+    ];
+
     if (this.config.axiosConfig.generateAxiosConfig) {
-      console.log(`   Axios config: ${path.join(this.config.outputDir, this.config.axiosConfig.axiosConfigPath)}`);
+      dirs.push(
+        path.join(
+          this.config.outputDir,
+          this.config.axiosConfig.axiosConfigPath
+        )
+      );
     }
-    
+
     if (this.config.hooks.generateHooks) {
-      console.log(`   Hooks: ${path.join(this.config.outputDir, this.config.hooks.hooksDir)}`);
+      dirs.push(path.join(this.config.outputDir, this.config.hooks.hooksDir));
     }
-    
-    console.log(`   Total tags: ${endpointsByTag.size}`);
-    console.log(`   Total endpoints: ${Array.from(endpointsByTag.values()).flat().length}`);
+
+    for (const dir of dirs) {
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+    }
+  }
+
+  private resolveConfig(
+    userConfig: UserGeneratorConfig
+  ): ResolvedGeneratorConfig {
+    return {
+      swaggerUrl: userConfig.swaggerUrl,
+      outputDir: userConfig.outputDir || "./src/generated",
+      modelsDir: userConfig.modelsDir || "models",
+      endpointsDir: userConfig.endpointsDir || "endpoints",
+      generateIndex: userConfig.generateIndex !== false,
+      stripBasePath: userConfig.stripBasePath,
+
+      axiosConfig: {
+        generateAxiosConfig:
+          userConfig.axiosConfig?.generateAxiosConfig !== false,
+        axiosConfigPath: userConfig.axiosConfig?.axiosConfigPath || "config",
+        baseUrlPlaceholder:
+          userConfig.axiosConfig?.baseUrlPlaceholder ||
+          "process.env.REACT_APP_API_URL",
+        includeInterceptors:
+          userConfig.axiosConfig?.includeInterceptors !== false,
+      },
+
+      hooks: {
+        generateHooks: userConfig.hooks?.generateHooks !== false,
+        hooksDir: userConfig.hooks?.hooksDir || "hooks",
+        hookPattern: userConfig.hooks?.hookPattern || "separate",
+        useFetch: userConfig.hooks?.useFetch || false,
+        includeHeaders: userConfig.hooks?.includeHeaders !== false,
+        headerPlaceholders: userConfig.hooks?.headerPlaceholders || [],
+      },
+    };
   }
 }

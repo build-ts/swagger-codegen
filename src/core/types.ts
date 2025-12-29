@@ -1,16 +1,21 @@
-// src/core/types.ts
 export interface SwaggerSpec {
   openapi?: string;
   swagger?: string;
   info: {
     title: string;
     version: string;
+    description?: string;
   };
   paths: Record<string, Record<string, EndpointDetails>>;
   components?: {
     schemas?: Record<string, SchemaObject>;
+    securitySchemes?: Record<string, any>;
   };
   definitions?: Record<string, SchemaObject>;
+  tags?: Array<{
+    name: string;
+    description?: string;
+  }>;
 }
 
 export interface EndpointDetails {
@@ -33,6 +38,10 @@ export interface SchemaObject {
   oneOf?: SchemaObject[];
   enum?: string[];
   description?: string;
+  format?: string;
+  nullable?: boolean;
+  readOnly?: boolean;
+  writeOnly?: boolean;
 }
 
 export interface Parameter {
@@ -41,11 +50,14 @@ export interface Parameter {
   required?: boolean;
   schema?: SchemaObject;
   description?: string;
+  type?: string;
+  format?: string;
 }
 
 export interface RequestBody {
   required?: boolean;
   content: Record<string, { schema: SchemaObject }>;
+  description?: string;
 }
 
 export interface Response {
@@ -61,10 +73,12 @@ export interface GeneratedInterface {
 
 export interface EndpointInfo {
   path: string;
+  originalPath?: string; // Original path before stripping base path
   method: string;
   operationId?: string;
   tag: string;
   summary?: string;
+  description?: string;
   requestType?: string;
   responseType?: string;
   paramsType?: string;
@@ -76,6 +90,8 @@ export interface AxiosConfigOptions {
   baseUrlPlaceholder: string;
   includeInterceptors: boolean;
   skipDependencyCheck?: boolean;
+  timeout?: number;
+  withCredentials?: boolean;
 }
 
 export interface HookOptions {
@@ -88,21 +104,24 @@ export interface HookOptions {
   useFetch?: boolean;
 }
 
-// Main config with nested optionals for CLI
 export interface GeneratorConfig {
   swaggerUrl: string;
   outputDir: string;
   modelsDir: string;
   endpointsDir: string;
   generateIndex: boolean;
+  stripBasePath?: string | string[];
   axiosConfig: AxiosConfigOptions;
   hooks: HookOptions;
 }
 
-// User input type for partial config
 export type UserGeneratorConfig = Partial<
   Omit<GeneratorConfig, "axiosConfig" | "hooks">
 > & {
+  swaggerUrl: string;
+  stripBasePath?: string | string[];
   axiosConfig?: Partial<AxiosConfigOptions>;
   hooks?: Partial<HookOptions>;
 };
+
+export type ResolvedGeneratorConfig = GeneratorConfig;

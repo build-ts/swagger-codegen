@@ -1,25 +1,22 @@
-// src/generators/axios-config-generator.ts
-import { AxiosConfigOptions } from '../core/types';
+import { ResolvedGeneratorConfig } from '../core/types';
 import { FileWriter } from '../writers/file-writer';
 import { Logger } from '../utils/logger';
 
 export class AxiosConfigGenerator {
   private fileWriter: FileWriter;
-  private options: AxiosConfigOptions;
 
-  constructor(outputDir: string, options: AxiosConfigOptions) {
+  constructor(outputDir: string) {
     this.fileWriter = new FileWriter(outputDir);
-    this.options = options;
   }
 
-  generate() {
-    if (!this.options.generateAxiosConfig) {
+  generate(config: ResolvedGeneratorConfig) {
+    if (!config.axiosConfig.generateAxiosConfig) {
       return;
     }
 
     Logger.step('Generating Axios config...');
 
-    const configContent = this.generateConfigFile();
+    const configContent = this.generateConfigFile(config.axiosConfig);
     this.fileWriter.writeFile('axiosInstance.ts', configContent);
 
     // Types file
@@ -29,23 +26,23 @@ export class AxiosConfigGenerator {
     Logger.success('Axios config generated');
   }
 
-  private generateConfigFile(): string {
+  private generateConfigFile(options: ResolvedGeneratorConfig['axiosConfig']): string {
     return `import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse, InternalAxiosRequestConfig } from 'axios';
 import { ApiError } from './types';
 
-const BASE_URL = ${this.options.baseUrlPlaceholder} || 'http://localhost:3000';
+const BASE_URL = ${options.baseUrlPlaceholder} || 'http://localhost:3000';
 
 // Create axios instance
 export const axiosInstance: AxiosInstance = axios.create({
   baseURL: BASE_URL,
-  timeout: 30000,
+  timeout: ${options.timeout || 30000},
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',
   },
 });
 
-${this.options.includeInterceptors ? this.generateInterceptors() : ''}
+${options.includeInterceptors ? this.generateInterceptors() : ''}
 
 export default axiosInstance;
 `;

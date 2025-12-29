@@ -1,17 +1,24 @@
-import { EndpointInfo } from '../core/types';
+import { EndpointInfo, ResolvedGeneratorConfig, SwaggerSpec } from '../core/types';
 import { FileWriter } from '../writers/file-writer';
 import { NamingUtil } from '../utils/naming';
 import { Logger } from '../utils/logger';
+import { EndpointParser } from '../parsers/endpoint-parser';
 
 export class EndpointGenerator {
   private fileWriter: FileWriter;
+  private spec: SwaggerSpec | null = null;
 
   constructor(outputDir: string) {
     this.fileWriter = new FileWriter(outputDir);
   }
 
-  generate(endpointsByTag: Map<string, EndpointInfo[]>) {
+  generate(
+    endpointsByTag: Map<string, EndpointInfo[]>,
+    config: ResolvedGeneratorConfig,
+    spec: SwaggerSpec
+  ) {
     Logger.step('Generating endpoint definitions...');
+    this.spec = spec;
 
     for (const [tag, endpoints] of endpointsByTag.entries()) {
       this.generateTagEndpoints(tag, endpoints);
@@ -21,53 +28,156 @@ export class EndpointGenerator {
   }
 
   private generateTagEndpoints(tag: string, endpoints: EndpointInfo[]) {
-    const endpointObject: Record<string, any> = {};
+    const content = this.generateEndpointsFile(tag, endpoints);
+    this.fileWriter.writeFile(`${tag}.ts`, content, false);
+  }
+
+  private generateEndpointsFile(tag: string, endpoints: EndpointInfo[]): string {
+    const tagName = NamingUtil.pascalCase(tag);
+    
+    let content = `/**\n * ${tagName} Endpoints\n * Auto-generated from Swagger specification\n */\n\n`;
+    
+    // Generate endpoint functions
+    content += `export const ${tag}Endpoints = {\n`;
 
     for (const endpoint of endpoints) {
-      const key = this.getEndpointKey(endpoint);
+      const methodName = this.getMethodName(endpoint);
+      const pathParams = EndpointParser.extractPathParams(endpoint.path);
+      const queryParams = this.extractQueryParams(endpoint);
       
-      endpointObject[key] = {
-        path: endpoint.path,
-        method: endpoint.method,
-        ...(endpoint.summary && { summary: endpoint.summary }),
-      };
+      content += this.generateEndpointFunction(
+        methodName,
+        endpoint,
+        pathParams,
+        queryParams
+      );
     }
 
-    const content = this.generateEndpointFile(tag, endpointObject);
-    this.fileWriter.writeFile(`${tag}.ts`, content);
+    content += `} as const;\n\n`;
+
+    // Generate metadata type
+    content += this.generateMetadataType(tag, endpoints);
+
+    return content;
   }
 
-  private getEndpointKey(endpoint: EndpointInfo): string {
-    if (endpoint.operationId) {
-      return NamingUtil.camelCase(endpoint.operationId);
+  private generateEndpointFunction(
+    methodName: string,
+    endpoint: EndpointInfo,
+    pathParams: string[],
+    queryParams: string[]
+  ): string {
+    const hasPathParams = pathParams.length > 0;
+    const hasQueryParams = queryParams.length > 0;
+    
+    // No params - simple function
+    if (!hasPathParams && !hasQueryParams) {
+      return `  ${methodName}: () => '${endpoint.path}',\n`;
     }
 
-    // path-dan key yarat: /api/customers/{id} -> getCustomersById
-    const pathParts = endpoint.path
-      .split('/')
-      .filter(p => p && p !== 'api')
-      .map(p => p.startsWith('{') ? 'by' + NamingUtil.capitalize(p.slice(1, -1)) : p);
+    // Generate function signature
+    let signature = '  ';
+    signature += methodName;
+    signature += ': (';
 
-    return NamingUtil.camelCase(`${endpoint.method}_${pathParts.join('_')}`);
+    const params: string[] = [];
+    
+    // Path params (required)
+    if (hasPathParams) {
+      for (const param of pathParams) {
+        params.push(`${param}: string | number`);
+      }
+    }
+
+    // Query params (optional object)
+    if (hasQueryParams) {
+      const queryParamTypes = queryParams.map(p => `${p}?: string | number | boolean`).join('; ');
+      params.push(`params?: { ${queryParamTypes} }`);
+    }
+
+    signature += params.join(', ');
+    signature += ') => {\n';
+
+    // Generate function body
+    let body = '';
+    
+    // Build path
+    let pathTemplate = endpoint.path;
+    for (const param of pathParams) {
+      pathTemplate = pathTemplate.replace(`{${param}}`, `\${${param}}`);
+    }
+    
+    body += `    const path = \`${pathTemplate}\`;\n`;
+
+    // Add query params if exist
+    if (hasQueryParams) {
+      body += `    if (!params) return path;\n`;
+      body += `    const queryString = new URLSearchParams(\n`;
+      body += `      Object.entries(params)\n`;
+      body += `        .filter(([_, v]) => v !== undefined && v !== null)\n`;
+      body += `        .map(([k, v]) => [k, String(v)])\n`;
+      body += `    ).toString();\n`;
+      body += `    return queryString ? \`\${path}?\${queryString}\` : path;\n`;
+    } else {
+      body += `    return path;\n`;
+    }
+
+    body += `  },\n`;
+
+    return signature + body;
   }
 
-  private generateEndpointFile(tag: string, endpoints: Record<string, any>): string {
+  private generateMetadataType(tag: string, endpoints: EndpointInfo[]): string {
     const tagName = NamingUtil.pascalCase(tag);
+    
+    let content = `export const ${tag}Metadata = {\n`;
 
-    return `/**
- * ${tagName} Endpoints
- * Auto-generated from Swagger specification
- */
+    for (const endpoint of endpoints) {
+      const methodName = this.getMethodName(endpoint);
+      
+      content += `  ${methodName}: {\n`;
+      content += `    method: '${endpoint.method}' as const,\n`;
+      
+      if (endpoint.summary) {
+        content += `    summary: '${endpoint.summary.replace(/'/g, "\\'")}',\n`;
+      }
+      
+      content += `  },\n`;
+    }
 
-export interface Endpoint {
-  path: string;
-  method: string;
-  summary?: string;
-}
+    content += `} as const;\n\n`;
+    content += `export type ${tagName}EndpointKeys = keyof typeof ${tag}Endpoints;\n`;
 
-export const ${NamingUtil.camelCase(tag)}Endpoints = ${JSON.stringify(endpoints, null, 2)} as const;
+    return content;
+  }
 
-export type ${tagName}EndpointKeys = keyof typeof ${NamingUtil.camelCase(tag)}Endpoints;
-`;
+  private getMethodName(endpoint: EndpointInfo): string {
+    if (endpoint.operationId) {
+      return NamingUtil.getMethodName(endpoint.operationId);
+    }
+
+    const method = endpoint.method.toLowerCase();
+    const resource = NamingUtil.getResourceFromPath(endpoint.path);
+    const resourcePascal = NamingUtil.pascalCase(resource);
+    
+    return `${method}${resourcePascal}`;
+  }
+
+  private extractQueryParams(endpoint: EndpointInfo): string[] {
+    if (!this.spec) return [];
+
+    const pathData = this.spec.paths[endpoint.originalPath || endpoint.path];
+    const methodData = pathData?.[endpoint.method.toLowerCase()];
+    const parameters = methodData?.parameters || [];
+
+    const queryParams: string[] = [];
+
+    for (const param of parameters) {
+      if (param.in === 'query') {
+        queryParams.push(param.name);
+      }
+    }
+
+    return queryParams;
   }
 }
