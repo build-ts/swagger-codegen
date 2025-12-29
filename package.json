@@ -1,6 +1,6 @@
 {
   "name": "@build-ts/swagger-codegen",
-  "version": "1.2.4",
+  "version": "2.0.0",
   "description": "Generate TypeScript models from Swagger/OpenAPI specifications",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
