@@ -1,0 +1,16 @@
+src/
+test/
+test-output/
+*.log
+*.tgz
+.DS_Store
+.vscode/
+.idea/
+node_modules/
+coverage/
+.nyc_output/
+swagger-codegen.config.*
+tsconfig.json
+.git/
+.github/
+*.md.backup

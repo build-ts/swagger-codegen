@@ -1,0 +1,11 @@
+node_modules/
+dist/
+test-output/
+*.log
+*.tgz
+.DS_Store
+.vscode/
+.idea/
+coverage/
+.nyc_output/
+yarn.lock
