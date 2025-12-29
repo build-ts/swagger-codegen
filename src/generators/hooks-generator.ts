@@ -36,7 +36,6 @@ export class HooksGenerator {
   ) {
     for (const [tag, endpoints] of endpointsByTag.entries()) {
       for (const endpoint of endpoints) {
-        // ✅ Skip if no operationId
         if (!endpoint.operationId) {
           Logger.warning(
             `Skipping hook for ${endpoint.method} ${endpoint.path} - no operationId`
@@ -46,7 +45,6 @@ export class HooksGenerator {
 
         const hookContent = this.generateSeparateHook(endpoint, tag, config);
 
-        // ✅ Skip empty hooks
         if (!hookContent) continue;
 
         const hookName = NamingUtil.getHookName(endpoint.operationId);
@@ -317,21 +315,18 @@ ${axiosCall}
     responseType: string,
     requestType: string
   ): string {
-    // Detect method from endpoint name
     const axiosMethod = this.detectMethodFromName(methodName);
 
     if (axiosMethod === "get" || axiosMethod === "delete") {
-      const genericType = `<${responseType}>`;
-      return `      const response = await axiosInstance.${axiosMethod}${genericType}(url${
+      const genericTypes = `<any, ${responseType}>`;
+      return `      const response = await axiosInstance.${axiosMethod}${genericTypes}(url${
         includeHeaders ? ", { headers }" : ""
       });`;
     } else {
-      // ✅ POST/PUT/PATCH: Request and response types
-      // ✅ POST/PUT/PATCH: Request and response types
       const genericTypes =
         hasBody && requestType
           ? `<${requestType}, ${responseType}>`
-          : `<${responseType}>`;
+          : `<any, ${responseType}>`;
       return `      const response = await axiosInstance.${axiosMethod}${genericTypes}(url, payload${
         includeHeaders ? ", { headers }" : ""
       });`;
