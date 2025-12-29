@@ -23,10 +23,13 @@ function parseArgs(): ParsedArgs {
     process.exit(0);
   }
 
-  const config: UserGeneratorConfig = { swaggerUrl: '' };
+  const config: UserGeneratorConfig = { 
+    swaggerUrl: '',
+  };
+  
   let configPath: string | undefined;
 
-  // İlk argument swagger URL ola bilər
+  // First argument as swagger URL
   if (args.length > 0 && !args[0].startsWith('-')) {
     config.swaggerUrl = args[0];
   }
@@ -40,35 +43,16 @@ function parseArgs(): ParsedArgs {
     } else if (arg === '--models' || arg === '-m') {
       config.modelsDir = args[++i];
     } else if (arg === '--endpoints' || arg === '-e') {
-      config.endpointsDir = args[++i];
-    } else if (arg === '--strip-base-path') {
-      config.stripBasePath = args[++i];
-    } else if (arg === '--hooks') {
-      if (!config.hooks) config.hooks = {};
-      config.hooks.hooksDir = args[++i];
-    } else if (arg === '--no-hooks') {
-      if (!config.hooks) config.hooks = {};
-      config.hooks.generateHooks = false;
-    } else if (arg === '--hook-pattern') {
-      if (!config.hooks) config.hooks = {};
-      const pattern = args[++i];
-      if (pattern === 'separate' || pattern === 'combined') {
-        config.hooks.hookPattern = pattern;
-      } else {
-        Logger.error(`Invalid hook pattern: ${pattern}. Use 'separate' or 'combined'`);
-        process.exit(1);
+      // ✅ Enable endpoints generation
+      if (!config.endpoints) config.endpoints = {};
+      config.endpoints.generateEndpoints = true;
+      
+      // Check if next arg is a directory
+      if (args[i + 1] && !args[i + 1].startsWith('-')) {
+        config.endpointsDir = args[++i];
       }
-    } else if (arg === '--use-fetch') {
-      if (!config.hooks) config.hooks = {};
-      config.hooks.useFetch = true;
-    } else if (arg === '--no-axios') {
-      if (!config.axiosConfig) config.axiosConfig = {};
-      config.axiosConfig.generateAxiosConfig = false;
-    } else if (arg === '--base-url') {
-      if (!config.axiosConfig) config.axiosConfig = {};
-      config.axiosConfig.baseUrlPlaceholder = args[++i];
-    } else if (arg === '--no-index') {
-      config.generateIndex = false;
+    } else if (arg === '--strip-base-path' || arg === '--strip') {
+      config.stripBasePath = args[++i];
     } else if (arg === '--config' || arg === '-c') {
       configPath = args[++i];
     }
@@ -78,77 +62,105 @@ function parseArgs(): ParsedArgs {
 }
 
 function printVersion() {
-  // Read version from package.json
   try {
     const packageJson = require('../package.json');
-    console.log(`swagger-codegen v${packageJson.version}`);
+    console.log(`@build-ts/swagger-codegen v${packageJson.version}`);
   } catch {
-    console.log('swagger-codegen (version unknown)');
+    console.log('@build-ts/swagger-codegen (version unknown)');
   }
 }
 
 function printHelp() {
   console.log(`
-Swagger Code Generator - Generate TypeScript code from OpenAPI/Swagger specs
+@build-ts/swagger-codegen - Generate TypeScript models from OpenAPI/Swagger specs
 
 Usage: swagger-codegen [swagger-url] [options]
 
 Arguments:
-  swagger-url           URL or path to Swagger/OpenAPI specification
+  swagger-url                URL or path to Swagger/OpenAPI specification
 
 Options:
-  -o, --output <dir>       Output directory (default: ./src/generated)
-  -m, --models <dir>       Models subdirectory (default: models)
-  -e, --endpoints <dir>    Endpoints subdirectory (default: endpoints)
-  --strip-base-path <path> Strip base path from URLs (e.g., /v1/api)
-  --hooks <dir>            Hooks subdirectory (default: hooks)
-  --no-hooks               Don't generate React hooks
-  --hook-pattern <type>    Hook pattern: 'separate' or 'combined' (default: separate)
-  --use-fetch              Use native fetch API instead of axios
-  --no-axios               Don't generate Axios config
-  --base-url <expr>        Base URL placeholder (default: process.env.REACT_APP_API_URL)
-  --no-index               Don't generate index files
-  -c, --config <path>      Path to config file
-  -v, --version            Show version number
-  -h, --help               Show this help message
+  -o, --output <dir>         Output directory (default: ./src/api)
+  -m, --models <dir>         Models subdirectory (default: models)
+  -e, --endpoints [dir]      Generate endpoints (optional dir, default: endpoints)
+  --strip-base-path <path>   Strip base path from URLs (e.g., /v1/api)
+  --strip <path>             Alias for --strip-base-path
+  -c, --config <path>        Path to config file
+  -v, --version              Show version number
+  -h, --help                 Show this help message
 
 Examples:
-  # Basic usage with axios (default)
-  swagger-codegen https://api.example.com/swagger.json
+  # Models only (default)
+  swagger-codegen https://api.example.com/docs/json
+  
+  # Models + Endpoints
+  swagger-codegen https://api.example.com/docs/json --endpoints
+  
+  # Custom directories
+  swagger-codegen https://api.example.com/docs/json -o ./src/api --endpoints
   
   # Strip base path
-  swagger-codegen https://api.example.com/docs/json --strip-base-path /v1/api
-  
-  # Using native fetch
-  swagger-codegen https://api.example.com/swagger.json --use-fetch
-  
-  # Fetch + no axios config
-  swagger-codegen ./swagger.json --use-fetch --no-axios
-  
-  # Custom output directory
-  swagger-codegen https://api.example.com/swagger.json -o ./src/api
+  swagger-codegen https://api.example.com/docs/json --strip /v1/api --endpoints
   
   # Using config file
   swagger-codegen -c ./swagger-codegen.config.js
-  
-  # Vite project with env variable
-  swagger-codegen https://api.example.com/swagger.json --base-url "import.meta.env.VITE_API_URL"
 
 Config File Example (swagger-codegen.config.js):
   export default {
     swaggerUrl: 'https://api.example.com/docs/json',
     outputDir: './src/api',
     stripBasePath: '/v1/api',
-    axiosConfig: {
-      baseUrlPlaceholder: 'import.meta.env.VITE_API_URL',
-      includeInterceptors: true,
-    },
-    hooks: {
-      generateHooks: true,
-      hookPattern: 'separate',
-      useFetch: false,
+    endpoints: {
+      generateEndpoints: true,  // Enable endpoint generation
     },
   };
+
+Generated Structure (Models Only):
+  src/api/
+  └── models/
+      ├── customer.ts       // All customer types
+      ├── product.ts        // All product types
+      └── index.ts
+
+Generated Structure (Models + Endpoints):
+  src/api/
+  ├── models/
+  │   ├── customer.ts
+  │   ├── product.ts
+  │   └── index.ts
+  └── endpoints/
+      ├── customer.ts       // customerEndpoints
+      ├── product.ts        // productEndpoints
+      └── index.ts
+
+Endpoint Example:
+  // endpoints/customer.ts
+  export const customerEndpoints = {
+    create: () => '/customers',
+    getAll: (params?: { page?: number; limit?: number }) => {
+      const queryString = params ? '?' + new URLSearchParams(
+        Object.entries(params).map(([k, v]) => [k, String(v)])
+      ).toString() : '';
+      return '/customers' + queryString;
+    },
+    getById: (id: string | number) => \`/customers/\${id}\`,
+    update: (id: string | number) => \`/customers/\${id}\`,
+    delete: (id: string | number) => \`/customers/\${id}\`,
+  } as const;
+
+Model Example:
+  // models/customer.ts
+  export interface ICustomerCreateRequest {
+    name: string;
+    email: string;
+  }
+  
+  export interface ICustomerCreateResponse {
+    id: number;
+    name: string;
+    email: string;
+    createdAt: string;
+  }
   `);
 }
 
@@ -163,7 +175,6 @@ async function main() {
       Logger.error('No configuration found!');
       Logger.info('Please provide a Swagger URL or create a config file.');
       Logger.info('Run "swagger-codegen --help" for more information.\n');
-      printHelp();
       process.exit(1);
     }
 
@@ -173,15 +184,11 @@ async function main() {
       outputDir: userConfig.outputDir || fileConfig?.outputDir,
       modelsDir: userConfig.modelsDir || fileConfig?.modelsDir,
       endpointsDir: userConfig.endpointsDir || fileConfig?.endpointsDir,
-      generateIndex: userConfig.generateIndex ?? fileConfig?.generateIndex,
       stripBasePath: userConfig.stripBasePath || fileConfig?.stripBasePath,
-      axiosConfig: {
-        ...fileConfig?.axiosConfig,
-        ...userConfig.axiosConfig,
-      },
-      hooks: {
-        ...fileConfig?.hooks,
-        ...userConfig.hooks,
+      endpoints: {
+        generateEndpoints: userConfig.endpoints?.generateEndpoints || fileConfig?.endpoints?.generateEndpoints || false,
+        ...fileConfig?.endpoints,
+        ...userConfig.endpoints,
       },
     };
 
@@ -195,23 +202,27 @@ async function main() {
     // Display config
     Logger.info('\n🎯 Configuration:');
     Logger.info(`   Swagger: ${finalConfig.swaggerUrl}`);
-    Logger.info(`   Output: ${finalConfig.outputDir || './src/generated'}`);
+    Logger.info(`   Output: ${finalConfig.outputDir || './src/api'}`);
     if (finalConfig.stripBasePath) {
       Logger.info(`   Strip Base Path: ${finalConfig.stripBasePath}`);
     }
-    if (finalConfig.hooks?.useFetch) {
-      Logger.info(`   HTTP Client: fetch (native)`);
-    } else {
-      Logger.info(`   HTTP Client: axios`);
+    
+    const modes: string[] = ['Models'];
+    if (finalConfig.endpoints?.generateEndpoints) {
+      modes.push('Endpoints');
     }
-    Logger.info('');
+    Logger.info(`   Mode: ${modes.join(' + ')}\n`);
 
     // Create generator and run
     const generator = new SwaggerCodeGenerator(finalConfig);
     await generator.generate();
 
-    Logger.info('\n✨ Generation completed successfully!');
-    Logger.info(`📁 Output: ${finalConfig.outputDir || './src/generated'}\n`);
+    Logger.success('\n✨ Generation completed successfully!');
+    Logger.info(`📁 Models: ${finalConfig.outputDir || './src/api'}/models`);
+    if (finalConfig.endpoints?.generateEndpoints) {
+      Logger.info(`📁 Endpoints: ${finalConfig.outputDir || './src/api'}/endpoints`);
+    }
+    Logger.info('');
 
   } catch (error) {
     Logger.error((error as Error).message);

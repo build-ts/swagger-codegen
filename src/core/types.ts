@@ -42,7 +42,7 @@ export interface SchemaObject {
   nullable?: boolean;
   readOnly?: boolean;
   writeOnly?: boolean;
-  additionalProperties?: boolean | SchemaObject;  // ✅ ƏLAVƏ ET
+  additionalProperties?: boolean | SchemaObject; // ✅ ƏLAVƏ ET
   minLength?: number;
   maxLength?: number;
   minimum?: number;
@@ -92,24 +92,8 @@ export interface EndpointInfo {
   paramsType?: string;
 }
 
-export interface AxiosConfigOptions {
-  generateAxiosConfig: boolean;
-  axiosConfigPath: string;
-  baseUrlPlaceholder: string;
-  includeInterceptors: boolean;
-  skipDependencyCheck?: boolean;
-  timeout?: number;
-  withCredentials?: boolean;
-}
-
-export interface HookOptions {
-  generateHooks: boolean;
-  hooksDir: string;
-  hookPattern: "separate" | "combined";
-  includeHeaders: boolean;
-  headerPlaceholders?: string[];
-  skipDependencyCheck?: boolean;
-  useFetch?: boolean;
+export interface EndpointOptions {
+  generateEndpoints?: boolean;
 }
 
 export interface GeneratorConfig {
@@ -119,17 +103,15 @@ export interface GeneratorConfig {
   endpointsDir: string;
   generateIndex: boolean;
   stripBasePath?: string | string[];
-  axiosConfig: AxiosConfigOptions;
-  hooks: HookOptions;
+  endpoints: EndpointOptions;
 }
 
 export type UserGeneratorConfig = Partial<
-  Omit<GeneratorConfig, "axiosConfig" | "hooks">
+  Omit<GeneratorConfig, "endpoints">
 > & {
   swaggerUrl: string;
   stripBasePath?: string | string[];
-  axiosConfig?: Partial<AxiosConfigOptions>;
-  hooks?: Partial<HookOptions>;
+  endpoints?: Partial<EndpointOptions>;  
 };
 
 export type ResolvedGeneratorConfig = GeneratorConfig;

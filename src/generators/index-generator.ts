@@ -30,11 +30,6 @@ export class IndexGenerator {
     // Generate endpoints index
     this.generateEndpointIndex(tags, config);
 
-    // Generate hooks index (if enabled)
-    if (config.hooks.generateHooks) {
-      this.generateHooksIndex(tags, config);
-    }
-
     Logger.success("Index files generated");
   }
 
@@ -77,20 +72,6 @@ ${endpointsObject}
     const endpointsIndexPath = path.join(config.endpointsDir, "index.ts");
     this.fileWriter.writeFile(endpointsIndexPath, content, true);
   }
-
-  private generateHooksIndex(tags: string[], config: ResolvedGeneratorConfig) {
-    const exports: string[] = [];
-
-    for (const tag of tags) {
-      exports.push(`export * from './${tag}';`);
-    }
-
-    const content = exports.join("\n") + "\n";
-
-    const hooksIndexPath = path.join(config.hooks.hooksDir, "index.ts");
-    this.fileWriter.writeFile(hooksIndexPath, content, true);
-  }
-
   /**
    * Legacy method - kept for backward compatibility
    */

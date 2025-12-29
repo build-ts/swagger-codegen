@@ -1,7 +1,7 @@
 {
   "name": "@build-ts/swagger-codegen",
   "version": "1.2.4",
-  "description": "Generate TypeScript models, endpoints, axios config and React hooks from Swagger/OpenAPI specs",
+  "description": "Generate TypeScript models from Swagger/OpenAPI specifications",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
@@ -18,13 +18,11 @@
     "openapi",
     "typescript",
     "codegen",
+    "models",
+    "types",
     "api",
-    "axios",
-    "react",
-    "react-hooks",
     "code-generator",
-    "api-client",
-    "fetch"
+    "type-generator"
   ],
   "author": "Ali",
   "license": "MIT",
@@ -44,18 +42,6 @@
   "devDependencies": {
     "@types/node": "^20.0.0",
     "typescript": "^5.3.0"
-  },
-  "peerDependencies": {
-    "axios": ">=0.27.0",
-    "react": ">=16.8.0"
-  },
-  "peerDependenciesMeta": {
-    "axios": {
-      "optional": true
-    },
-    "react": {
-      "optional": true
-    }
   },
   "files": [
     "dist",

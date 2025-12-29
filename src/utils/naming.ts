@@ -247,19 +247,7 @@ static pascalCase(str: string): string {
         .replace(/^[A-Z]/, (char) => char.toLowerCase())
     );
   }
-  /**
-   * Generate hook name from operation ID
-   * categoryControllerGetCategoryById -> useGetCategoryById
-   */
-  static getHookName(operationId: string | undefined): string {
-    if (!operationId) {
-      return "useEndpoint"; // Fallback
-    }
-    const cleaned = this.cleanOperationId(operationId);
-    const camelCased = this.camelCase(cleaned);
-    return `use${this.capitalize(camelCased)}`;
-  }
-
+ 
   /**
    * Generate method name from operation ID
    * categoryControllerGetCategoryById -> getCategoryById
@@ -270,15 +258,6 @@ static pascalCase(str: string): string {
     }
     const cleaned = this.cleanOperationId(operationId);
     return this.camelCase(cleaned);
-  }
-
-  /**
-   * Generate hook file name
-   * useGetCategoryById -> useGetCategoryById.ts
-   */
-  static getHookFileName(operationId: string): string {
-    const hookName = this.getHookName(operationId);
-    return `${hookName}.ts`;
   }
 
   /**
