@@ -225,11 +225,13 @@ export class HooksGenerator {
       paramsType
     );
 
-    // Generate axios call
+    // Generate axios call with generic types
     const axiosCall = this.generateAxiosCall(
-      endpoint.method,
+      methodName,
       hasBody,
-      config.hooks.includeHeaders
+      config.hooks.includeHeaders,
+      responseType,
+      requestType
     );
 
     return `export const ${hookName} = (): ${returnTypeName} => {
@@ -311,17 +313,26 @@ ${axiosCall}
   private generateAxiosCall(
     methodName: string,
     hasBody: boolean,
-    includeHeaders: boolean
+    includeHeaders: boolean,
+    responseType: string,
+    requestType: string
   ): string {
     // Detect method from endpoint name
     const axiosMethod = this.detectMethodFromName(methodName);
 
     if (axiosMethod === "get" || axiosMethod === "delete") {
-      return `      const response = await axiosInstance.${axiosMethod}(url${
+      const genericType = `<${responseType}>`;
+      return `      const response = await axiosInstance.${axiosMethod}${genericType}(url${
         includeHeaders ? ", { headers }" : ""
       });`;
     } else {
-      return `      const response = await axiosInstance.${axiosMethod}(url, payload${
+      // ✅ POST/PUT/PATCH: Request and response types
+      // ✅ POST/PUT/PATCH: Request and response types
+      const genericTypes =
+        hasBody && requestType
+          ? `<${requestType}, ${responseType}>`
+          : `<${responseType}>`;
+      return `      const response = await axiosInstance.${axiosMethod}${genericTypes}(url, payload${
         includeHeaders ? ", { headers }" : ""
       });`;
     }
@@ -364,6 +375,7 @@ ${axiosCall}
   /**
    * Generate imports - no metadata import
    */
+
   private generateImports(
     tag: string,
     resourceName: string,
@@ -375,10 +387,11 @@ ${axiosCall}
     imports += `import { axiosInstance } from '../../config/axiosInstance';\n`;
     imports += `import { ${camelTag}Endpoints } from '../../endpoints/${tag}';\n`;
 
+    // ✅ Type imports with 'type' keyword
     const typeImports: string[] = [];
-    if (types.hasResponse) typeImports.push(`I${resourceName}Response`);
-    if (types.hasParams) typeImports.push(`I${resourceName}Params`);
-    if (types.hasRequest) typeImports.push(`I${resourceName}Request`);
+    if (types.hasResponse) typeImports.push(`type I${resourceName}Response`);
+    if (types.hasParams) typeImports.push(`type I${resourceName}Params`);
+    if (types.hasRequest) typeImports.push(`type I${resourceName}Request`);
 
     if (typeImports.length > 0) {
       imports += `import { ${typeImports.join(
