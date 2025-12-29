@@ -1,68 +1,80 @@
-import { SwaggerSpec, EndpointInfo, GeneratedInterface, ResolvedGeneratorConfig } from '../core/types';
-import { SchemaParser } from '../parsers/schema-parser';
-import { FileWriter } from '../writers/file-writer';
-import { NamingUtil } from '../utils/naming';
-import { Logger } from '../utils/logger';
+import {
+  SwaggerSpec,
+  EndpointInfo,
+  GeneratedInterface,
+  ResolvedGeneratorConfig,
+} from "../core/types";
+import { SchemaParser } from "../parsers/schema-parser";
+import { FileWriter } from "../writers/file-writer";
+import { NamingUtil } from "../utils/naming";
+import { Logger } from "../utils/logger";
 
 interface TypeInfo {
   name: string;
   content: string;
   resource: string;
-  suffix: 'Request' | 'Response' | 'Params';
+  suffix: "Request" | "Response" | "Params";
 }
 
 export class ModelGenerator {
   private schemaParser: SchemaParser;
   private fileWriter: FileWriter;
-  private typeRegistry: Map<string, TypeInfo> = new Map();
 
   constructor(outputDir: string) {
     this.schemaParser = new SchemaParser();
     this.fileWriter = new FileWriter(outputDir);
   }
 
-  generate(spec: SwaggerSpec, endpointsByTag: Map<string, EndpointInfo[]>, config: ResolvedGeneratorConfig) {
-    Logger.step('Generating model interfaces...');
+  generate(
+    spec: SwaggerSpec,
+    endpointsByTag: Map<string, EndpointInfo[]>,
+    config: ResolvedGeneratorConfig
+  ) {
+    Logger.step("Generating model interfaces...");
 
-    // First pass: collect all types by resource
-    const typesByResource = this.collectTypesByResource(endpointsByTag, spec);
+    // Set spec for $ref resolution
+    this.schemaParser.setSpec(spec);
 
-    // Second pass: generate deduplicated types
-    for (const [resource, types] of typesByResource.entries()) {
-      this.generateResourceModels(resource, types, spec);
+    for (const [tag, endpoints] of endpointsByTag.entries()) {
+      this.generateTagModels(tag, endpoints, spec);
     }
 
-    Logger.success('Model generation completed');
+    Logger.success("Model generation completed");
   }
 
   /**
-   * Collect all types grouped by resource name
+   * Group all types by resource name
+   * customer: [ICustomerRequest, ICustomerResponse, ICustomerParams]
    */
-  private collectTypesByResource(
+  private groupByResource(
     endpointsByTag: Map<string, EndpointInfo[]>,
     spec: SwaggerSpec
-  ): Map<string, Set<'Request' | 'Response' | 'Params'>> {
-    const typesByResource = new Map<string, Set<'Request' | 'Response' | 'Params'>>();
+  ): Map<string, Set<GeneratedInterface>> {
+    const typesByResource = new Map<string, Set<GeneratedInterface>>();
 
     for (const [tag, endpoints] of endpointsByTag.entries()) {
       for (const endpoint of endpoints) {
-        const resource = this.getResourceName(endpoint);
+        if (!endpoint.operationId) continue;
 
-        if (!typesByResource.has(resource)) {
-          typesByResource.set(resource, new Set());
+        // Extract resource name (clean!)
+        const resourceName = NamingUtil.extractResourceName(
+          endpoint.operationId
+        );
+        const resourceKey = resourceName.toLowerCase();
+
+        if (!typesByResource.has(resourceKey)) {
+          typesByResource.set(resourceKey, new Set());
         }
 
-        const types = typesByResource.get(resource)!;
+        // Generate types for this endpoint
+        const interfaces = this.generateEndpointTypes(
+          endpoint,
+          spec,
+          resourceName
+        );
 
-        // Check what types this endpoint needs
-        if (this.extractRequestSchema(endpoint, spec)) {
-          types.add('Request');
-        }
-        if (this.extractResponseSchema(endpoint, spec)) {
-          types.add('Response');
-        }
-        if (endpoint.method === 'GET' && this.hasParameters(endpoint, spec)) {
-          types.add('Params');
+        for (const iface of interfaces) {
+          typesByResource.get(resourceKey)!.add(iface);
         }
       }
     }
@@ -71,72 +83,89 @@ export class ModelGenerator {
   }
 
   /**
-   * Generate all types for a resource
+   * Generate all type interfaces for an endpoint
    */
-  private generateResourceModels(
-    resource: string,
-    types: Set<'Request' | 'Response' | 'Params'>,
-    spec: SwaggerSpec
-  ) {
-    const interfaces: string[] = [];
+  private generateEndpointTypes(
+    endpoint: EndpointInfo,
+    spec: SwaggerSpec,
+    resourceName: string
+  ): GeneratedInterface[] {
+    const interfaces: GeneratedInterface[] = [];
 
-    // Generate each type
-    for (const type of ['Request', 'Response', 'Params'] as const) {
-      if (types.has(type)) {
-        const interfaceContent = this.generateTypeInterface(resource, type, spec);
-        if (interfaceContent) {
-          interfaces.push(interfaceContent);
+    // Request type
+    if (["POST", "PUT", "PATCH"].includes(endpoint.method)) {
+      const requestSchema = this.extractRequestSchema(endpoint, spec);
+      if (requestSchema) {
+        const requestInterface = this.schemaParser.parseSchema(
+          requestSchema,
+          `I${resourceName}Request`
+        );
+        if (requestInterface) {
+          interfaces.push(requestInterface);
         }
       }
     }
 
-    if (interfaces.length > 0) {
-      const content = interfaces.join('\n');
-      const fileName = `${resource.toLowerCase()}.ts`;
-      this.fileWriter.writeFile(fileName, content, true);
+    // Response type
+    const responseSchema = this.extractResponseSchema(endpoint, spec);
+    if (responseSchema) {
+      const responseInterface = this.schemaParser.parseSchema(
+        responseSchema,
+        `I${resourceName}Response`
+      );
+      if (responseInterface) {
+        interfaces.push(responseInterface);
+      }
     }
+
+    // Params type (for GET)
+    if (endpoint.method === "GET") {
+      const paramsInterface = this.generateParamsInterface(
+        endpoint,
+        spec,
+        resourceName
+      );
+      if (paramsInterface) {
+        interfaces.push(paramsInterface);
+      }
+    }
+
+    return interfaces;
   }
 
   /**
-   * Generate a single type interface
+   * Generate one file for a resource with all its types
    */
-  private generateTypeInterface(
+  private generateResourceFile(
     resource: string,
-    suffix: 'Request' | 'Response' | 'Params',
-    spec: SwaggerSpec
-  ): string | null {
-    const interfaceName = NamingUtil.getInterfaceName(resource, suffix);
+    interfaces: Set<GeneratedInterface>
+  ) {
+    // Deduplicate by name
+    const uniqueInterfaces = new Map<string, GeneratedInterface>();
 
-    // For now, generate generic interface
-    // In production, you'd parse the actual schema
-    const content = `export interface ${interfaceName} {\n  [key: string]: any;\n}\n`;
-
-    return content;
-  }
-
-  /**
-   * Get resource name from endpoint
-   */
-  private getResourceName(endpoint: EndpointInfo): string {
-    if (endpoint.operationId) {
-      return NamingUtil.extractResourceName(endpoint.operationId);
+    for (const iface of interfaces) {
+      if (!uniqueInterfaces.has(iface.name)) {
+        uniqueInterfaces.set(iface.name, iface);
+      }
     }
-    
-    // Fallback to path-based naming
-    const resource = NamingUtil.getResourceFromPath(endpoint.path);
-    return NamingUtil.pascalCase(NamingUtil.singularize(resource));
+
+    const content = Array.from(uniqueInterfaces.values())
+      .map((i) => i.content)
+      .join("\n");
+
+    this.fileWriter.writeFile(`${resource}.ts`, content, true);
   }
 
   /**
    * Generate models for a tag (legacy method for compatibility)
    */
-  generateTagModels(
+  private generateTagModels(
     tag: string,
     endpoints: EndpointInfo[],
     spec: SwaggerSpec
   ) {
     this.schemaParser.reset();
-    const interfaces: GeneratedInterface[] = [];
+    const interfaces: any[] = [];
 
     for (const endpoint of endpoints) {
       const baseName = this.getBaseName(endpoint, tag);
@@ -147,7 +176,7 @@ export class ModelGenerator {
         const requestInterface = this.schemaParser.parseSchema(
           requestSchema,
           baseName,
-          'Request'
+          "Request"
         );
         if (requestInterface) {
           interfaces.push(requestInterface);
@@ -160,7 +189,7 @@ export class ModelGenerator {
         const responseInterface = this.schemaParser.parseSchema(
           responseSchema,
           baseName,
-          'Response'
+          "Response"
         );
         if (responseInterface) {
           interfaces.push(responseInterface);
@@ -168,7 +197,7 @@ export class ModelGenerator {
       }
 
       // Params
-      if (endpoint.method === 'GET' && this.hasParameters(endpoint, spec)) {
+      if (endpoint.method === "GET" && this.hasParameters(endpoint, spec)) {
         const paramsInterface = this.generateParamsInterface(
           endpoint,
           spec,
@@ -181,7 +210,7 @@ export class ModelGenerator {
     }
 
     if (interfaces.length > 0) {
-      const content = interfaces.map(i => i.content).join('\n');
+      const content = interfaces.map((i) => i.content).join("\n");
       this.fileWriter.writeFile(`${tag}.ts`, content, true);
     }
   }
@@ -202,23 +231,27 @@ export class ModelGenerator {
     if (!methodData?.requestBody) return null;
 
     const content = methodData.requestBody.content;
-    const jsonContent = content?.['application/json'] || content?.['*/*'];
+    const jsonContent = content?.["application/json"] || content?.["*/*"];
 
     return jsonContent?.schema;
   }
 
-  private extractResponseSchema(endpoint: EndpointInfo, spec: SwaggerSpec): any {
+  private extractResponseSchema(
+    endpoint: EndpointInfo,
+    spec: SwaggerSpec
+  ): any {
     const pathData = spec.paths[endpoint.originalPath || endpoint.path];
     const methodData = pathData?.[endpoint.method.toLowerCase()];
 
-    const response = methodData?.responses?.['200'] || 
-                     methodData?.responses?.['201'] || 
-                     methodData?.responses?.['default'];
+    const response =
+      methodData?.responses?.["200"] ||
+      methodData?.responses?.["201"] ||
+      methodData?.responses?.["default"];
 
     if (!response?.content) return null;
 
-    const jsonContent = response.content['application/json'] || 
-                        response.content['*/*'];
+    const jsonContent =
+      response.content["application/json"] || response.content["*/*"];
 
     return jsonContent?.schema;
   }
@@ -226,7 +259,7 @@ export class ModelGenerator {
   private hasParameters(endpoint: EndpointInfo, spec: SwaggerSpec): boolean {
     const pathData = spec.paths[endpoint.originalPath || endpoint.path];
     const methodData = pathData?.[endpoint.method.toLowerCase()];
-    
+
     return !!(methodData?.parameters && methodData.parameters.length > 0);
   }
 
@@ -241,17 +274,15 @@ export class ModelGenerator {
 
     if (parameters.length === 0) return null;
 
-    const name = NamingUtil.getInterfaceName(baseName, 'Params');
-    let properties = '';
+    const name = NamingUtil.getInterfaceName(baseName, "Params");
+    let properties = "";
 
     for (const param of parameters) {
-      const required = param.required ? '' : '?';
-      const type = param.schema 
-        ? this.getParamType(param.schema)
-        : 'any';
-      const description = param.description 
-        ? `  /** ${param.description} */\n` 
-        : '';
+      const required = param.required ? "" : "?";
+      const type = param.schema ? this.getParamType(param.schema) : "any";
+      const description = param.description
+        ? `  /** ${param.description} */\n`
+        : "";
 
       properties += `${description}  ${param.name}${required}: ${type};\n`;
     }
@@ -263,17 +294,17 @@ export class ModelGenerator {
 
   private getParamType(schema: any): string {
     switch (schema.type) {
-      case 'string':
-        return 'string';
-      case 'number':
-      case 'integer':
-        return 'number';
-      case 'boolean':
-        return 'boolean';
-      case 'array':
-        return 'any[]';
+      case "string":
+        return "string";
+      case "number":
+      case "integer":
+        return "number";
+      case "boolean":
+        return "boolean";
+      case "array":
+        return "any[]";
       default:
-        return 'any';
+        return "any";
     }
   }
 }

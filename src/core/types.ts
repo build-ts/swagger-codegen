@@ -42,6 +42,14 @@ export interface SchemaObject {
   nullable?: boolean;
   readOnly?: boolean;
   writeOnly?: boolean;
+  additionalProperties?: boolean | SchemaObject;  // ✅ ƏLAVƏ ET
+  minLength?: number;
+  maxLength?: number;
+  minimum?: number;
+  maximum?: number;
+  pattern?: string;
+  example?: any;
+  default?: any;
 }
 
 export interface Parameter {
