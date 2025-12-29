@@ -336,7 +336,8 @@ ${axiosCall}
     pathParams: string[],
     paramsType: string
   ): string {
-    const endpointsVar = `${tag}Endpoints`;
+    const camelTag = NamingUtil.camelCase(tag);
+    const endpointsVar = `${camelTag}Endpoints`;
 
     let code = `      // Build URL\n`;
 
@@ -360,7 +361,6 @@ ${axiosCall}
 
     return code;
   }
-
   /**
    * Generate imports - no metadata import
    */
@@ -369,9 +369,11 @@ ${axiosCall}
     resourceName: string,
     types: { hasResponse: boolean; hasParams: boolean; hasRequest: boolean }
   ): string {
+    const camelTag = NamingUtil.camelCase(tag);
+
     let imports = `import { useState } from 'react';\n`;
     imports += `import { axiosInstance } from '../../config/axiosInstance';\n`;
-    imports += `import { ${tag}Endpoints } from '../../endpoints/${tag}';\n`; // ✅ No metadata
+    imports += `import { ${camelTag}Endpoints } from '../../endpoints/${tag}';\n`;
 
     const typeImports: string[] = [];
     if (types.hasResponse) typeImports.push(`I${resourceName}Response`);
@@ -381,7 +383,7 @@ ${axiosCall}
     if (typeImports.length > 0) {
       imports += `import { ${typeImports.join(
         ", "
-      )} } from '../../models/${resourceName.toLowerCase()}';\n`;
+      )} } from '../../models/${tag}';\n`;
     }
 
     return imports;

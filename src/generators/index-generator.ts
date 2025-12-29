@@ -1,8 +1,8 @@
-import { EndpointInfo, ResolvedGeneratorConfig } from '../core/types';
-import { FileWriter } from '../writers/file-writer';
-import { NamingUtil } from '../utils/naming';
-import { Logger } from '../utils/logger';
-import path from 'path';
+import { EndpointInfo, ResolvedGeneratorConfig } from "../core/types";
+import { FileWriter } from "../writers/file-writer";
+import { NamingUtil } from "../utils/naming";
+import { Logger } from "../utils/logger";
+import path from "path";
 
 export class IndexGenerator {
   private outputDir: string;
@@ -16,8 +16,11 @@ export class IndexGenerator {
   /**
    * Main generate method - called from Generator
    */
-  generate(endpointsByTag: Map<string, EndpointInfo[]>, config: ResolvedGeneratorConfig) {
-    Logger.step('Generating index files...');
+  generate(
+    endpointsByTag: Map<string, EndpointInfo[]>,
+    config: ResolvedGeneratorConfig
+  ) {
+    Logger.step("Generating index files...");
 
     const tags = Array.from(endpointsByTag.keys());
 
@@ -32,28 +35,37 @@ export class IndexGenerator {
       this.generateHooksIndex(tags, config);
     }
 
-    Logger.success('Index files generated');
+    Logger.success("Index files generated");
   }
 
   private generateModelIndex(tags: string[], config: ResolvedGeneratorConfig) {
-    const exports = tags.map(tag => {
-      return `export * from './${tag}';`;
-    }).join('\n');
+    const exports = tags
+      .map((tag) => {
+        return `export * from './${tag}';`;
+      })
+      .join("\n");
 
-    const modelsIndexPath = path.join(config.modelsDir, 'index.ts');
+    const modelsIndexPath = path.join(config.modelsDir, "index.ts");
     this.fileWriter.writeFile(modelsIndexPath, exports, true);
   }
 
-  private generateEndpointIndex(tags: string[], config: ResolvedGeneratorConfig) {
-    const exports = tags.map(tag => {
-      const camelTag = NamingUtil.camelCase(tag);
-      return `export { ${camelTag}Endpoints, ${camelTag}Metadata } from './${tag}';`;
-    }).join('\n');
+  private generateEndpointIndex(
+    tags: string[],
+    config: ResolvedGeneratorConfig
+  ) {
+    const exports = tags
+      .map((tag) => {
+        const camelTag = NamingUtil.camelCase(tag); // ✅
+        return `export { ${camelTag}Endpoints } from './${tag}';`;
+      })
+      .join("\n");
 
-    const endpointsObject = tags.map(tag => {
-      const camelTag = NamingUtil.camelCase(tag);
-      return `  ${camelTag}: ${camelTag}Endpoints,`;
-    }).join('\n');
+    const endpointsObject = tags
+      .map((tag) => {
+        const camelTag = NamingUtil.camelCase(tag); // ✅
+        return `  ${camelTag}: ${camelTag}Endpoints,`;
+      })
+      .join("\n");
 
     const content = `${exports}
 
@@ -62,7 +74,7 @@ ${endpointsObject}
 } as const;
 `;
 
-    const endpointsIndexPath = path.join(config.endpointsDir, 'index.ts');
+    const endpointsIndexPath = path.join(config.endpointsDir, "index.ts");
     this.fileWriter.writeFile(endpointsIndexPath, content, true);
   }
 
@@ -73,9 +85,9 @@ ${endpointsObject}
       exports.push(`export * from './${tag}';`);
     }
 
-    const content = exports.join('\n') + '\n';
+    const content = exports.join("\n") + "\n";
 
-    const hooksIndexPath = path.join(config.hooks.hooksDir, 'index.ts');
+    const hooksIndexPath = path.join(config.hooks.hooksDir, "index.ts");
     this.fileWriter.writeFile(hooksIndexPath, content, true);
   }
 
@@ -83,35 +95,44 @@ ${endpointsObject}
    * Legacy method - kept for backward compatibility
    */
   generateModelIndex_old(tags: string[]) {
-    Logger.step('Generating models index...');
+    Logger.step("Generating models index...");
 
-    const exports = tags.map(tag => {
-      return `export * from './${tag}';`;
-    }).join('\n');
+    const exports = tags
+      .map((tag) => {
+        return `export * from './${tag}';`;
+      })
+      .join("\n");
 
-    this.fileWriter.writeFile('index.ts', exports, true);
-    Logger.success('Models index generated');
+    this.fileWriter.writeFile("index.ts", exports, true);
+    Logger.success("Models index generated");
   }
 
   /**
    * Legacy method - kept for backward compatibility
    */
   generateEndpointIndex_old(tags: string[]) {
-    Logger.step('Generating endpoints index...');
+    Logger.step("Generating endpoints index...");
 
-    const exports = tags.map(tag => {
-      const camelTag = NamingUtil.camelCase(tag);
-      return `export { ${camelTag}Endpoints } from './${tag}';`;
-    }).join('\n');
+    const exports = tags
+      .map((tag) => {
+        const camelTag = NamingUtil.camelCase(tag);
+        return `export { ${camelTag}Endpoints } from './${tag}';`;
+      })
+      .join("\n");
 
     const content = `${exports}
 
 export const endpoints = {
-${tags.map(tag => `  ${NamingUtil.camelCase(tag)}: ${NamingUtil.camelCase(tag)}Endpoints,`).join('\n')}
+${tags
+  .map(
+    (tag) =>
+      `  ${NamingUtil.camelCase(tag)}: ${NamingUtil.camelCase(tag)}Endpoints,`
+  )
+  .join("\n")}
 } as const;
 `;
 
-    this.fileWriter.writeFile('index.ts', content, true);
-    Logger.success('Endpoints index generated');
+    this.fileWriter.writeFile("index.ts", content, true);
+    Logger.success("Endpoints index generated");
   }
 }

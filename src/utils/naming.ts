@@ -1,20 +1,15 @@
 export class NamingUtil {
-  /**
-   * Convert string to camelCase
-   */
-  static camelCase(str: string): string {
-    return str
-      .replace(/[-_\s]+(.)?/g, (_, c) => (c ? c.toUpperCase() : ""))
-      .replace(/^[A-Z]/, (c) => c.toLowerCase());
-  }
-
-  /**
-   * Convert string to PascalCase
-   */
-  static pascalCase(str: string): string {
-    const camel = this.camelCase(str);
-    return camel.charAt(0).toUpperCase() + camel.slice(1);
-  }
+/**
+ * Convert string to PascalCase
+ * qr-codes -> QrCodes
+ * hotel-rooms -> HotelRooms
+ */
+static pascalCase(str: string): string {
+  if (!str) return '';
+  
+  const camel = this.camelCase(str);
+  return camel.charAt(0).toUpperCase() + camel.slice(1);
+}
 
   /**
    * Capitalize first letter
@@ -225,17 +220,33 @@ export class NamingUtil {
     const pascal = this.pascalCase(baseName);
     return `I${pascal}${suffix}`;
   }
-
   /**
-   * Sanitize tag name for file naming
+   * Sanitize tag name for file and variable naming
+   * qr-codes -> qrCodes
+   * hotel-rooms -> hotelRooms
    */
   static sanitizeTagName(tag: string): string {
-    return tag
-      .toLowerCase()
-      .replace(/\s+/g, "-")
-      .replace(/[^a-z0-9-]/g, "");
+    // Convert to camelCase (handles dashes, spaces, underscores)
+    return this.camelCase(tag);
   }
 
+  /**
+   * Convert string to camelCase
+   * qr-codes -> qrCodes
+   * hotel_rooms -> hotelRooms
+   * hotel rooms -> hotelRooms
+   */
+  static camelCase(str: string): string {
+    if (!str) return "";
+
+    return (
+      str
+        // Replace dashes, underscores, spaces with separator
+        .replace(/[-_\s]+(.)?/g, (_, char) => (char ? char.toUpperCase() : ""))
+        // Lowercase first character
+        .replace(/^[A-Z]/, (char) => char.toLowerCase())
+    );
+  }
   /**
    * Generate hook name from operation ID
    * categoryControllerGetCategoryById -> useGetCategoryById

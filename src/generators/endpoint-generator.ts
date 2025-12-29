@@ -36,37 +36,34 @@ export class EndpointGenerator {
     this.fileWriter.writeFile(`${tag}.ts`, content, false);
   }
 
-  private generateEndpointsFile(
-    tag: string,
-    endpoints: EndpointInfo[]
-  ): string {
-    const tagName = NamingUtil.pascalCase(tag);
+private generateEndpointsFile(tag: string, endpoints: EndpointInfo[]): string {
+  const camelTag = NamingUtil.camelCase(tag);
+  
+  const pascalTag = NamingUtil.pascalCase(tag);
+  
+  let content = `/**\n * ${pascalTag} Endpoints\n * Auto-generated from Swagger specification\n */\n\n`;
+  
+  content += `export const ${camelTag}Endpoints = {\n`;
 
-    let content = `/**\n * ${tagName} Endpoints\n * Auto-generated from Swagger specification\n */\n\n`;
-
-    // Generate endpoint functions
-    content += `export const ${tag}Endpoints = {\n`;
-
-    for (const endpoint of endpoints) {
-      const methodName = this.getMethodName(endpoint);
-      const pathParams = EndpointParser.extractPathParams(endpoint.path);
-      const queryParams = this.extractQueryParams(endpoint);
-
-      content += this.generateEndpointFunction(
-        methodName,
-        endpoint,
-        pathParams,
-        queryParams
-      );
-    }
-
-    content += `} as const;\n\n`;
-
-    content += `export type ${tagName}EndpointKeys = keyof typeof ${tag}Endpoints;\n`;
-
-    return content;
+  for (const endpoint of endpoints) {
+    const methodName = this.getMethodName(endpoint);
+    const pathParams = EndpointParser.extractPathParams(endpoint.path);
+    const queryParams = this.extractQueryParams(endpoint);
+    
+    content += this.generateEndpointFunction(
+      methodName,
+      endpoint,
+      pathParams,
+      queryParams
+    );
   }
 
+  content += `} as const;\n\n`;
+  
+  content += `export type ${pascalTag}EndpointKeys = keyof typeof ${camelTag}Endpoints;\n`;
+
+  return content;
+}
   private generateEndpointFunction(
     methodName: string,
     endpoint: EndpointInfo,
