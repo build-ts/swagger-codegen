@@ -1,5 +1,5 @@
 {
-  "name": "@alistack/swagger-codegen",
+  "name": "@build-ts/swagger-codegen",
   "version": "1.0.0",
   "description": "Generate TypeScript models, endpoints, axios config and React hooks from Swagger/OpenAPI specs",
   "main": "dist/index.js",
